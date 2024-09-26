@@ -1,0 +1,32 @@
+def find_shortest_path(ship, bot, button, fire):
+    # Create a graph representing the ship layout
+    G = nx.Graph()
+
+    # Add edges between adjacent open cells (floorSymbol)
+    D = len(ship)
+    for x in range(D):
+        for y in range(D):
+            if ship[x][y] == floorSymbol or ship[x][y] == buttonSymbol:
+                if x > 0 and (ship[x - 1][y] == floorSymbol or ship[x - 1][y] == buttonSymbol):
+                    G.add_edge((x, y), (x - 1, y))
+                if x < D - 1 and (ship[x + 1][y] == floorSymbol or ship[x + 1][y] == buttonSymbol):
+                    G.add_edge((x, y), (x + 1, y))
+                if y > 0 and (ship[x][y - 1] == floorSymbol or ship[x][y - 1] == buttonSymbol):
+                    G.add_edge((x, y), (x, y - 1))
+                if y < D - 1 and (ship[x][y + 1] == floorSymbol or ship[x][y + 1] == buttonSymbol):
+                    G.add_edge((x, y), (x, y + 1))
+
+    # Avoid the fire
+    if fire in G:
+        G.remove_node(fire)
+
+    # Find the shortest path from bot to button
+    try:
+        shortest_path = nx.shortest_path(G, source=bot, target=button)
+        return shortest_path
+    except nx.NetworkXNoPath:
+        print("No path available between bot and button!")
+        return None
+
+
+
