@@ -1,0 +1,202 @@
+import numpy as np
+from tabulate import tabulate
+import random
+import networkx as nx
+
+# Symbols for various objects on the ship
+wallSymbol = '+'
+floorSymbol = '_'
+botSymbol = str('\U0001F916')
+buttonSymbol = str('\U0001F381')
+fireSymbol = str('\U0001F525')
+
+
+def theShip(D, opencells):
+    options = []
+    ship = np.full((D, D), int(0), dtype=object)
+    X, Y = random.randrange(D), random.randrange(D)  # Selects random point on ship for first cell to open
+    opencells.append(tuple([X, Y]))
+
+    markOpen(ship, X, Y, D, options)
+
+    while len(options) >= 1:
+        rand = random.randrange(len(options))
+        X, Y = options[rand]
+        opencells.append(tuple([X, Y]))
+        options = markOpen(ship, X, Y, D, options)
+
+    deadends = []
+    for X in range(D):
+        for Y in range(D):
+            if isinstance(ship[X][Y], int):
+                ship[X][Y] = wallSymbol
+            if isinstance(ship[X][Y], str):
+                isDeadend = 0
+                if X - 1 >= 0 and ship[X - 1][Y] == floorSymbol:
+                    isDeadend += 1
+                if X + 1 < D and ship[X + 1][Y] == floorSymbol:
+                    isDeadend += 1
+                if Y - 1 >= 0 and ship[X][Y - 1] == floorSymbol:
+                    isDeadend += 1
+                if Y + 1 < D and ship[X][Y + 1] == floorSymbol:
+                    isDeadend += 1
+                if isDeadend == 1:
+                    deadends.append(tuple([X, Y]))
+
+    random.shuffle(deadends)
+    for i in range(int(len(deadends) / 2)):
+        X, Y = deadends[i]
+        randselect = []
+        randnum = 0
+        if Y - 1 >= 0 and isinstance(ship[X][Y - 1], int):
+            randselect.append(ship[X][Y - 1])
+            randnum += 1
+        if X - 1 >= 0 and isinstance(ship[X - 1][Y], int):
+            randselect.append(ship[X - 1][Y])
+            randnum += 1
+        if X + 1 < D and isinstance(ship[X + 1][Y], int):
+            randselect.append(ship[X + 1][Y])
+            randnum += 1
+        if Y + 1 < D and isinstance(ship[X][Y + 1], int):
+            randselect.append(ship[X][Y + 1])
+            randnum += 1
+
+        if randnum > 0:
+            randnum = random.randrange(randnum)
+            deadends.remove(tuple([X, Y]))
+            if Y - 1 >= 0 and isinstance(ship[X][Y - 1], int):
+                if randnum == 0:
+                    ship[X][Y - 1] = str(floorSymbol)
+                    opencells.append(tuple([X, Y - 1]))
+                randnum -= 1
+            if X - 1 >= 0 and isinstance(ship[X - 1][Y], int):
+                if randnum == 0:
+                    ship[X - 1][Y] = str(floorSymbol)
+                    opencells.append(tuple([X - 1, Y]))
+                randnum -= 1
+            if X + 1 < D and isinstance(ship[X + 1][Y], int):
+                if randnum == 0:
+                    ship[X + 1][Y] = str(floorSymbol)
+                    opencells.append(tuple([X + 1, Y]))
+                randnum -= 1
+            if Y + 1 < D and isinstance(ship[X][Y + 1], int):
+                if randnum == 0:
+                    ship[X][Y + 1] = str(floorSymbol)
+                    opencells.append(tuple([X, Y + 1]))
+
+    return opencells, ship
+
+
+def markOpen(ship, X, Y, D, options):
+    ship[X][Y] = str(floorSymbol)
+
+    if (X, Y) in options:
+        options.remove(tuple([X, Y]))
+
+    if Y - 1 >= 0 and isinstance(ship[X][Y - 1], int):
+        ship[X][Y - 1] += 1
+        if ship[X][Y - 1] == 1:
+            options.append(tuple([X, Y - 1]))
+        elif ship[X][Y - 1] > 1 and (X, Y - 1) in options:
+            options.remove(tuple([X, Y - 1]))
+
+    if X - 1 >= 0 and isinstance(ship[X - 1][Y], int):
+        ship[X - 1][Y] += 1
+        if ship[X - 1][Y] == 1:
+            options.append(tuple([X - 1, Y]))
+        elif ship[X - 1][Y] > 1 and (X - 1, Y) in options:
+            options.remove(tuple([X - 1, Y]))
+
+    if X + 1 < D and isinstance(ship[X + 1][Y], int):
+        ship[X + 1][Y] += 1
+        if ship[X + 1][Y] == 1:
+            options.append(tuple([X + 1, Y]))
+        elif ship[X + 1][Y] > 1 and (X + 1, Y) in options:
+            options.remove(tuple([X + 1, Y]))
+
+    if Y + 1 < D and isinstance(ship[X][Y + 1], int):
+        ship[X][Y + 1] += 1
+        if ship[X][Y + 1] == 1:
+            options.append(tuple([X, Y + 1]))
+        elif ship[X][Y + 1] > 1 and (X, Y + 1) in options:
+            options.remove(tuple([X, Y + 1]))
+
+    return options
+
+
+def spreadFire(Fire, ship, opencells, fireNeighbors):
+    ship[Fire[0]][Fire[1]] = fireSymbol
+
+    fireNeighbors.remove(tuple([Fire[0], Fire[1]]))
+    opencells.remove(tuple([Fire[0], Fire[1]]))
+
+    # Update neighboring cells for fire
+    if Fire[1] - 1 >= 0 and ship[Fire[0]][Fire[1] - 1] in (floorSymbol, botSymbol, buttonSymbol):
+        fireNeighbors.append(ship[Fire[0]][Fire[1] - 1])
+    if Fire[1] + 1 < len(ship) and ship[Fire[0]][Fire[1] + 1] in (floorSymbol, botSymbol, buttonSymbol):
+        fireNeighbors.append(ship[Fire[0]][Fire[1] + 1])
+    if Fire[0] + 1 < len(ship) and ship[Fire[0] + 1][Fire[1]] in (floorSymbol, botSymbol, buttonSymbol):
+        fireNeighbors.append(ship[Fire[0] + 1][Fire[1]])
+    if Fire[0] - 1 >= 0 and ship[Fire[0] - 1][Fire[1]] in (floorSymbol, botSymbol, buttonSymbol):
+        fireNeighbors.append(ship[Fire[0] - 1][Fire[1]])
+
+
+def placeObjects(bot, button, fire0, ship, opencells):
+    ship[bot[0]][bot[1]] = botSymbol
+    ship[button[0]][button[1]] = buttonSymbol
+    spreadFire(fire0, ship, opencells, [])
+
+    # Find and print the shortest path for Bot 1
+    shortest_path, shortest_distance = find_shortest_path(ship, bot, button, fire0)
+    if shortest_path:
+        print("Shortest path for Bot 1: ", shortest_path)
+        print("Shortest path distance: ", shortest_distance)
+
+    print(tabulate(ship))
+
+
+def find_shortest_path(ship, bot, button, fire):
+    # Create a graph representing the ship layout
+    G = nx.Graph()
+
+    # Add edges between adjacent open cells (floorSymbol)
+    D = len(ship)
+    for x in range(D):
+        for y in range(D):
+            if ship[x][y] == floorSymbol or ship[x][y] == buttonSymbol:
+                if x > 0 and (ship[x - 1][y] == floorSymbol or ship[x - 1][y] == buttonSymbol):
+                    G.add_edge((x, y), (x - 1, y))
+                if x < D - 1 and (ship[x + 1][y] == floorSymbol or ship[x + 1][y] == buttonSymbol):
+                    G.add_edge((x, y), (x + 1, y))
+                if y > 0 and (ship[x][y - 1] == floorSymbol or ship[x][y - 1] == buttonSymbol):
+                    G.add_edge((x, y), (x, y - 1))
+                if y < D - 1 and (ship[x][y + 1] == floorSymbol or ship[x][y + 1] == buttonSymbol):
+                    G.add_edge((x, y), (x, y + 1))
+
+    # Avoid the initial fire
+    if fire in G:
+        G.remove_node(fire)
+
+    # Find the shortest path from bot to button
+    try:
+        shortest_path = nx.shortest_path(G, source=bot, target=button)
+        shortest_distance = nx.shortest_path_length(G, source=bot, target=button)
+        return shortest_path, shortest_distance
+    except nx.NetworkXNoPath:
+        print("No path available between bot and button!")
+        return None, None
+
+
+def main():
+    D = 10  # Ship dimensions
+    opencells = []
+    opencells, ship = theShip(D, opencells)
+
+    print("Number of open cells:", len(opencells))
+    random.shuffle(opencells)
+
+    placeObjects(opencells[0], opencells[1], opencells[2], ship, opencells)
+
+
+if __name__ == "__main__":
+    main()
