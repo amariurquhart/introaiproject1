@@ -1,16 +1,18 @@
 import numpy as np
 from tabulate import tabulate
 import random
+import heapq
 
-
-wallSymbol = str('\U00002B1B')
-floorSymbol = str('\U00002B1C')
-botSymbol = str('\U0001F916')
-buttonSymbol = str('\U0001F7E5')
-fireSymbol = str('\U0001F525')
+# Define symbols
+wallSymbol = str('\U00002B1B')  # Wall
+floorSymbol = str('\U00002B1C')  # Floor
+botSymbol = str('\U0001F916')  # Bot
+buttonSymbol = str('\U0001F7E5')  # Button
+fireSymbol = str('\U0001F525')  # Fire
+pathSymbol = str('\U0001F7E6')  # Path symbol
 
 D = 40  # Ship dimensions variable
-q = 0.5
+q = 0.5  # Probability factor for fire spread
 
 
 def theShip(D, opencells):
@@ -20,281 +22,270 @@ def theShip(D, opencells):
     opencells.append(tuple([X, Y]))
 
     markOpen(ship, X, Y, D, options)
-    # markOpen will open the given XY and increase each closed neighbor C by +1, adding them to the options list IF and ONLY IF C == 1, meaning C only has one opened neighbor
+
     while len(options) >= 1:
-        # while there are available XY in options, this will iterate continuously
         rand = random.randrange(len(options))
         X, Y = options[rand]
         opencells.append(tuple([X, Y]))
         options = markOpen(ship, X, Y, D, options)
 
-    # print(tabulate(ship))  IGNORE
-    # print(options)         IGNORE
-
     deadends = []
-    for X in range(
-            D):  # This code chunk iterates over every cell on the ship to figure out which are dead ends (have only one side that is an X).
+    for X in range(D):
         for Y in range(D):
             if isinstance(ship[X][Y], int):
                 ship[X][Y] = wallSymbol
             if isinstance(ship[X][Y], str):
                 isDeadend = 0
-                if X - 1 >= 0:
-                    if ship[X - 1][Y] == floorSymbol:
-                        isDeadend += 1
-                if X + 1 < D:
-                    if ship[X + 1][Y] == floorSymbol:
-                        isDeadend += 1
-                if Y - 1 >= 0:
-                    if ship[X][Y - 1] == floorSymbol:
-                        isDeadend += 1
-                if Y + 1 < D:
-                    if ship[X][Y + 1] == floorSymbol:
-                        isDeadend += 1
-                if isDeadend == 1:  # If isDeadend is 1, then this cell only has one opened neighbor and is a deadend
+                if X - 1 >= 0 and ship[X - 1][Y] == floorSymbol:
+                    isDeadend += 1
+                if X + 1 < D and ship[X + 1][Y] == floorSymbol:
+                    isDeadend += 1
+                if Y - 1 >= 0 and ship[X][Y - 1] == floorSymbol:
+                    isDeadend += 1
+                if Y + 1 < D and ship[X][Y + 1] == floorSymbol:
+                    isDeadend += 1
+                if isDeadend == 1:
                     deadends.append(tuple([X, Y]))
-    random.shuffle(deadends)  # Randomizes dead end list so that we can randomly select the first half of them
+    random.shuffle(deadends)
 
-    # print(tabulate(ship))
-    # print(deadends)
-
-    for i in range(
-            int(len(deadends) / 2)):  # The first half of the dead ends list is iterated on, this code chunk figures out how many neighbors are available to open
+    for i in range(int(len(deadends) / 2)):
         X, Y = deadends[i]
         randselect = []
         randnum = 0
-        if Y - 1 >= 0:
-            if isinstance(ship[X][Y - 1], int):
-                randselect.append(ship[X][Y - 1])
-                randnum += 1  # randnum is used in the next code chunk
-        if X - 1 >= 0:
-            if isinstance(ship[X - 1][Y], int):
-                randselect.append(ship[X - 1][Y])
-                randnum += 1
-        if X + 1 < D:
-            if isinstance(ship[X + 1][Y], int):
-                randselect.append(ship[X + 1][Y])
-                randnum += 1
-        if Y + 1 < D:
-            if isinstance(ship[X][Y + 1], int):
-                randselect.append(ship[X][Y + 1])
-                randnum += 1
+        if Y - 1 >= 0 and isinstance(ship[X][Y - 1], int):
+            randselect.append(ship[X][Y - 1])
+            randnum += 1
+        if X - 1 >= 0 and isinstance(ship[X - 1][Y], int):
+            randselect.append(ship[X - 1][Y])
+            randnum += 1
+        if X + 1 < D and isinstance(ship[X + 1][Y], int):
+            randselect.append(ship[X + 1][Y])
+            randnum += 1
+        if Y + 1 < D and isinstance(ship[X][Y + 1], int):
+            randselect.append(ship[X][Y + 1])
+            randnum += 1
 
-        if randnum > 0:  # This code chunk uses randnum to 'randomly' select one of the closed neighbors to open, then removes XY from dead end list
+        if randnum > 0:
             randnum = random.randrange(randnum)
             deadends.remove(tuple([X, Y]))
-            if Y - 1 >= 0:
-                if isinstance(ship[X][Y - 1], int):
-                    if randnum == 0:
-                        ship[X][Y - 1] = str(floorSymbol)
-                        opencells.append(tuple([X, Y - 1]))
-                    randnum -= 1
-            if X - 1 >= 0:
-                if isinstance(ship[X - 1][Y], int):
-                    if randnum == 0:
-                        ship[X - 1][Y] = str(floorSymbol)
-                        opencells.append(tuple([X - 1, Y]))
-                    randnum -= 1
-            if X + 1 < D:
-                if isinstance(ship[X + 1][Y], int):
-                    if randnum == 0:
-                        ship[X + 1][Y] = str(floorSymbol)
-                        opencells.append(tuple([X + 1, Y]))
-                    randnum -= 1
-            if Y + 1 < D:
-                if isinstance(ship[X][Y + 1], int):
-                    if randnum == 0:
-                        ship[X][Y + 1] = str(floorSymbol)
-                        opencells.append(tuple([X, Y + 1]))
-                    randnum -= 1
-
-    print(tabulate(ship))
-
-    print(deadends)
+            if Y - 1 >= 0 and isinstance(ship[X][Y - 1], int) and randnum == 0:
+                ship[X][Y - 1] = str(floorSymbol)
+                opencells.append(tuple([X, Y - 1]))
+            if X - 1 >= 0 and isinstance(ship[X - 1][Y], int) and randnum == 0:
+                ship[X - 1][Y] = str(floorSymbol)
+                opencells.append(tuple([X - 1, Y]))
+            if X + 1 < D and isinstance(ship[X + 1][Y], int) and randnum == 0:
+                ship[X + 1][Y] = str(floorSymbol)
+                opencells.append(tuple([X + 1, Y]))
+            if Y + 1 < D and isinstance(ship[X][Y + 1], int) and randnum == 0:
+                ship[X][Y + 1] = str(floorSymbol)
+                opencells.append(tuple([X, Y + 1]))
 
     return opencells, ship
 
 
 def markOpen(ship, X, Y, D, options):
     ship[X][Y] = str(floorSymbol)
-
     if (X, Y) in options:
-        options.remove(tuple([X, Y]))  # Remove current XY from list of available closed cells as its being opened
+        options.remove(tuple([X, Y]))
 
-    if Y - 1 >= 0:  # Checks south of current XY for valid open cells
-        if isinstance(ship[X][Y - 1], int):
-            ship[X][
-                Y - 1] += 1  # At any given point, closed cells should display how many opened neighbors they have, from 1 to 4, courtesy of this command
-            if ship[X][Y - 1] == 1:
-                options.append(tuple([X, Y - 1]))
-            elif ship[X][Y - 1] > 1 and (X, Y - 1) in options:
-                options.remove(tuple([X, Y - 1]))
-    if X - 1 >= 0:  # Checks west of current XY for valid open cells
-        if isinstance(ship[X - 1][Y], int):
-            ship[X - 1][
-                Y] += 1  # At any given point, closed cells should display how many opened neighbors they have, from 1 to 4, courtesy of this command
-            if ship[X - 1][Y] == 1:
-                options.append(tuple([X - 1, Y]))
-            elif ship[X - 1][Y] > 1 and (X - 1, Y) in options:
-                options.remove(tuple([X - 1, Y]))
-    if X + 1 < D:  # Checks east of current XY for valid open cells
-        if isinstance(ship[X + 1][Y], int):
-            ship[X + 1][
-                Y] += 1  # At any given point, closed cells should display how many opened neighbors they have, from 1 to 4, courtesy of this command
-            if ship[X + 1][Y] == 1:
-                options.append(tuple([X + 1, Y]))
-            elif ship[X + 1][Y] > 1 and (X + 1, Y) in options:
-                options.remove(tuple([X + 1, Y]))
-    if Y + 1 < D:  # Checks north of current XY for valid open cells
-        if isinstance(ship[X][Y + 1], int):
-            ship[X][
-                Y + 1] += 1  # At any given point, closed cells should display how many opened neighbors they have, from 1 to 4, courtesy of this command
-            if ship[X][Y + 1] == 1:
-                options.append(tuple([X, Y + 1]))
-            elif ship[X][Y + 1] > 1 and (X, Y + 1) in options:
-                options.remove(tuple([X, Y + 1]))
-
-                # print(tabulate(ship))     IGNORE
-    # print(options)            IGNORE
+    # Update neighbors
+    if Y - 1 >= 0 and isinstance(ship[X][Y - 1], int):
+        ship[X][Y - 1] += 1
+        if ship[X][Y - 1] == 1:
+            options.append(tuple([X, Y - 1]))
+    if X - 1 >= 0 and isinstance(ship[X - 1][Y], int):
+        ship[X - 1][Y] += 1
+        if ship[X - 1][Y] == 1:
+            options.append(tuple([X - 1, Y]))
+    if X + 1 < D and isinstance(ship[X + 1][Y], int):
+        ship[X + 1][Y] += 1
+        if ship[X + 1][Y] == 1:
+            options.append(tuple([X + 1, Y]))
+    if Y + 1 < D and isinstance(ship[X][Y + 1], int):
+        ship[X][Y + 1] += 1
+        if ship[X][Y + 1] == 1:
+            options.append(tuple([X, Y + 1]))
 
     return options
 
 
-def placeObjects(bot, button, fire0, ship, opencells, fireNeighbors):
-    ship[bot[0]][bot[1]] = botSymbol
-    ship[button[0]][button[1]] = buttonSymbol
-    fireNeighbors.append(tuple([fire0[0], fire0[1]]))
-    fireNeighbors, opencells = startFire(fire0, ship, opencells, fireNeighbors)
-    print(tabulate(ship))
+# Heuristic function: Manhattan Distance
+def heuristic(a, b):
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+# A* Algorithm to find the shortest path
+def a_star(start, goal, ship):
+    print(f"Bot starting at: {start}")
+    print(f"Button placed at: {goal}")
+
+    # Priority queue (min-heap)
+    open_set = []
+    heapq.heappush(open_set, (0, start))
+
+    # Dictionary to reconstruct the path
+    came_from = {}
+
+    # Cost from start to the current node
+    g_score = {start: 0}
+
+    # Estimated cost from start to goal
+    f_score = {start: heuristic(start, goal)}
+
+    # A* search loop
+    while open_set:
+        current = heapq.heappop(open_set)[1]
+
+        # Goal check
+        if current == goal:
+            print("Path found!")
+            return reconstruct_path(came_from, current), g_score[current]
+
+        # Get neighbors for current node
+        neighbors = get_neighbors(current, ship)
+        for neighbor in neighbors:
+            # Tentative g_score for neighbor
+            tentative_g_score = g_score[current] + 1
+
+            # If this path to the neighbor is better
+            if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
+                came_from[neighbor] = current
+                g_score[neighbor] = tentative_g_score
+                f_score[neighbor] = tentative_g_score + heuristic(neighbor, goal)
+
+                # Add to the open set if not already there
+                if neighbor not in [i[1] for i in open_set]:
+                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
+
+    print("No path found by A*")
+    return None, float('inf')  # If no path is found
+
+# Function to reconstruct the path from start to goal
+def reconstruct_path(came_from, current):
+    total_path = [current]
+    while current in came_from:
+        current = came_from[current]
+        total_path.append(current)
+    total_path.reverse()  # Reverse the path for correct order
+    return total_path
+
+# Get neighbors of a cell (open floor cells only)
+def get_neighbors(pos, ship):
+    neighbors = []
+    x, y = pos
+
+    # Check up, down, left, right for valid cells
+    if x > 0 and ship[x - 1][y] == floorSymbol:  # Up
+        neighbors.append((x - 1, y))
+    if x < D - 1 and ship[x + 1][y] == floorSymbol:  # Down
+        neighbors.append((x + 1, y))
+    if y > 0 and ship[x][y - 1] == floorSymbol:  # Left
+        neighbors.append((x, y - 1))
+    if y < D - 1 and ship[x][y + 1] == floorSymbol:  # Right
+        neighbors.append((x, y + 1))
+
+    print(f"Neighbors for {pos}: {neighbors}")
+    return neighbors
+
+
+def startFire(Fire, ship, opencells, fireNeighbors):
+    ship[Fire[0]][Fire[1]] = fireSymbol
+    fire_tuple = tuple([Fire[0], Fire[1]])
+
+    # Safely remove fire_tuple from fireNeighbors if it exists
+    if fire_tuple in fireNeighbors:
+        fireNeighbors.remove(fire_tuple)
+
+    # Safely remove fire_tuple from opencells if it exists
+    if fire_tuple in opencells:
+        opencells.remove(fire_tuple)
+
+    # Check all four directions for potential new fire neighbors
+    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        new_x, new_y = Fire[0] + dx, Fire[1] + dy
+        if 0 <= new_x < D and 0 <= new_y < D:  # Check boundaries
+            if ship[new_x][new_y] in [floorSymbol, botSymbol, buttonSymbol]:
+                if (new_x, new_y) not in fireNeighbors:  # Avoid duplicates
+                    fireNeighbors.append((new_x, new_y))
+
     return fireNeighbors, opencells
 
 
 def spreadFire(fireNeighbors, opencells, ship):
     toFire = []
 
-    for i in fireNeighbors:
-        K = 0
-        if i[0] - 1 >= 0:
-            if ship[i[0] - 1][i[1]] == fireSymbol:
-                K += 1
-        if i[0] + 1 < D:
-            if ship[i[0] + 1][i[1]] == fireSymbol:
-                K += 1
-        if i[1] - 1 >= 0:
-            if ship[i[0]][i[1] - 1] == fireSymbol:
-                K += 1
-        if i[1] + 1 < D:
-            if ship[i[0]][i[1] + 1] == fireSymbol:
-                K += 1
-        print(K)
-        p = (1 - ((1 - q) ** K))
-        print(p)
-        if random.uniform(0, 1) <= p:
-            toFire.append(tuple(i))
-            print(toFire)
+    for fire in fireNeighbors:
+        K = sum(1 for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                if 0 <= fire[0] + dx < D and 0 <= fire[1] + dy < D and ship[fire[0] + dx][fire[1] + dy] == fireSymbol)
 
-    for i in toFire:
-        startFire(i, ship, opencells, fireNeighbors)
+        # Determine probability of spread
+        p = (1 - ((1 - q) ** K))
+        if random.uniform(0, 1) <= p:
+            toFire.append(fire)
+
+    for fire in toFire:
+        fireNeighbors, opencells = startFire(fire, ship, opencells, fireNeighbors)
 
     return opencells, fireNeighbors
 
 
-def startFire(Fire, ship, opencells, fireNeighbors):
-    ship[Fire[0]][Fire[1]] = fireSymbol
-    fireNeighbors.remove(tuple([Fire[0], Fire[1]]))
-    opencells.remove(tuple([Fire[0], Fire[1]]))
-    if Fire[1] - 1 >= 0:
-        if ship[Fire[0]][Fire[1] - 1] == floorSymbol or ship[Fire[0]][Fire[1] - 1] == botSymbol or ship[Fire[0]][
-            Fire[1] - 1] == buttonSymbol:
-            fireNeighbors.append(tuple([Fire[0], Fire[1] - 1]))
-    if Fire[1] + 1 < D:
-        if ship[Fire[0]][Fire[1] + 1] == floorSymbol or ship[Fire[0]][Fire[1] + 1] == botSymbol or ship[Fire[0]][
-            Fire[1] + 1] == buttonSymbol:
-            fireNeighbors.append(tuple([Fire[0], Fire[1] + 1]))
-    if Fire[0] + 1 < D:
-        if ship[Fire[0] + 1][Fire[1]] == floorSymbol or ship[Fire[0] + 1][Fire[1]] == botSymbol or ship[Fire[0] + 1][
-            Fire[1]] == buttonSymbol:
-            fireNeighbors.append(tuple([Fire[0] + 1, Fire[1]]))
-    if Fire[0] - 1 >= 0:
-        if ship[Fire[0] - 1][Fire[1]] == floorSymbol or ship[Fire[0] - 1][Fire[1]] == botSymbol or ship[Fire[0] - 1][
-            Fire[1]] == buttonSymbol:
-            fireNeighbors.append(tuple([Fire[0] - 1, Fire[1]]))
-    '''print('fire neighbors') 
-    print(fireNeighbors)
-    print(len(opencells))'''
+def placeObjects(ship, opencells):
+    if len(opencells) < 3:
+        print("Not enough open cells to place bot and button.")
+        return
+
+    # Randomly select bot, button, and fire positions from available cells
+    bot = random.choice(opencells)
+    opencells.remove(bot)  # Remove the chosen bot position from available cells
+
+    button = random.choice(opencells)
+    opencells.remove(button)  # Remove the button position from available cells
+
+    # Assuming fire is also placed in open cells
+    fire_position = random.choice(opencells)
+    fireNeighbors = [fire_position]  # Initialize fire neighbors
+    opencells.remove(fire_position)  # Remove fire position from available cells
+
+    # Place bot and button in the ship grid
+    ship[bot[0]][bot[1]] = botSymbol
+    ship[button[0]][button[1]] = buttonSymbol
+    fireNeighbors, opencells = startFire(fire_position, ship, opencells, fireNeighbors)
+    print(tabulate(ship))
+
+    # Run A* algorithm to find shortest path from bot to button
+    path, path_length = a_star(bot, button, ship)
+
+    if path:
+        print(f"Shortest path found by bot to button: {path}")
+        print(f"Shortest path length: {path_length}")
+        # Mark the path on the ship
+        for step in path:
+            ship[step[0]][step[1]] = pathSymbol  # Mark path with a different symbol
+        print(tabulate(ship))
+    else:
+        print("No path found!")
+
     return fireNeighbors, opencells
 
 
-from collections import deque
-
-# Helper function to get valid neighboring cells
-def get_neighbors(x, y, ship, D):
-    neighbors = []
-    if x - 1 >= 0 and ship[x - 1][y] == floorSymbol:
-        neighbors.append((x - 1, y))
-    if x + 1 < D and ship[x + 1][y] == floorSymbol:
-        neighbors.append((x + 1, y))
-    if y - 1 >= 0 and ship[x][y - 1] == floorSymbol:
-        neighbors.append((x, y - 1))
-    if y + 1 < D and ship[x][y + 1] == floorSymbol:
-        neighbors.append((x, y + 1))
-    return neighbors
-
-# BFS to find the shortest path from the bot to the button
-def bfs_shortest_path(start, goal, ship, D):
-    if ship[start[0]][start[1]] != floorSymbol or ship[goal[0]][goal[1]] != floorSymbol:
-        print("Either the start or goal is not a valid open cell.")
-        return None
-
-    queue = deque([(start, [start])])  # Queue holds (current cell, path to current cell)
-    visited = set()
-    visited.add(start)
-
-    while queue:
-        (current_cell, path) = queue.popleft()
-        if current_cell == goal:
-            return path  # Return the shortest path to the goal
-
-        for neighbor in get_neighbors(current_cell[0], current_cell[1], ship, D):
-            if neighbor not in visited:
-                visited.add(neighbor)
-                queue.append((neighbor, path + [neighbor]))
-
-    print("No path found from bot to button!")
-    return None  # No path found
-
-# Function to place bot and button on valid open cells
-def place_bot_and_button(opencells, ship):
-    random.shuffle(opencells)
-    bot_position = opencells[0]  # Place bot on an open cell
-    button_position = opencells[1]  # Place button on another open cell
-    ship[bot_position[0]][bot_position[1]] = botSymbol
-    ship[button_position[0]][button_position[1]] = buttonSymbol
-    return bot_position, button_position, ship
-
-# Main function
 def main():
     t = 100
     ti = 0
     opencells = []
     opencells, ship = theShip(D, opencells)
 
-    # Make sure bot and button are placed in valid locations
-    bot_position, button_position, ship = place_bot_and_button(opencells, ship)
+    # Print total open cells for debugging
+    print(f"Total open cells: {len(opencells)}")
 
-    # BFS to compute the shortest path for Bot 1 (ignoring fire spread)
-    path = bfs_shortest_path(bot_position, button_position, ship, D)
+    fireNeighbors = []
+    # Place the bot, button, and fire, and run A* to find the shortest path
+    fireNeighbors, opencells = placeObjects(ship, opencells)
 
-    if path:
-        print(f"Shortest path to button: {path}")
-        print(f"Distance to the button: {len(path) - 1} steps")  # Distance is the number of steps
-    else:
-        print("No path found!")
-
-    while ti < t and path and len(path) > 1:
+    while ti < t:
         ti += 1
-        path, ship = move_bot(path, ship)
+        opencells, fireNeighbors = spreadFire(fireNeighbors, opencells, ship)
         print(tabulate(ship))
+
 
 if __name__ == "__main__":
     main()
