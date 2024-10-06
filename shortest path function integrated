@@ -192,19 +192,20 @@ def heuristic(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 
-# Get neighbors for A*
-def get_neighbors(ship, node, fire):
+# Get neighbors and allow bots to pass each other
+def get_neighbors(ship, node, bot_positions, fire):
     neighbors = []
     x, y = node
     potential_moves = [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]  # N, S, W, E
     for nx, ny in potential_moves:
         if 0 <= nx < D and 0 <= ny < D and ship[nx][ny] != wallSymbol and (nx, ny) != fire:
-            neighbors.append((nx, ny))
+            if (nx, ny) not in bot_positions:  # Avoid blocking by other bots
+                neighbors.append((nx, ny))
     return neighbors
 
 
-# A* algorithm for Bot 1
-def bot1_a_star(ship, start, goal, fire):
+# A* algorithm for both Bot 1 and Bot 2
+def a_star(ship, start, goal, fire, bot_positions):
     close_set = set()
     came_from = {}
     gscore = {start: 0}
@@ -222,13 +223,11 @@ def bot1_a_star(ship, start, goal, fire):
                 path.append(current)
                 current = came_from[current]
             path = path[::-1]
-            print("Shortest Path:", path)
-            print("Length of the Shortest Path:", len(path))
             return path
 
         close_set.add(current)
 
-        for neighbor in get_neighbors(ship, current, fire):
+        for neighbor in get_neighbors(ship, current, bot_positions, fire):
             tentative_gscore = gscore[current] + 1
 
             if neighbor in close_set and tentative_gscore >= gscore.get(neighbor, 0):
@@ -240,70 +239,23 @@ def bot1_a_star(ship, start, goal, fire):
                 fscore[neighbor] = tentative_gscore + heuristic(neighbor, goal)
                 heapq.heappush(open_heap, (fscore[neighbor], neighbor))
 
-    print("No path found to the button!")
-    return False
+    return False  # No path found
 
 
-# Move Bot 1 along the path
-def bot1_move(ship, bot, path):
+# Move bots and handle collisions
+def bot_move(ship, bot, path, bot_positions):
     if path:
-        next_move = path.pop(0)
-        ship[bot[0]][bot[1]] = floorSymbol
-        bot[0], bot[1] = next_move
-        ship[bot[0]][bot[1]] = botSymbol
+        next_move = path[0]
+        # Check if another bot is in the way
+        if next_move not in bot_positions:
+            path.pop(0)
+            ship[bot[0]][bot[1]] = floorSymbol  # Clear bot's previous position
+            bot[0], bot[1] = next_move          # Move to the next position
+            ship[bot[0]][bot[1]] = botSymbol    # Update the bot's new position
     return bot, path
 
-# A* algorithm for Bot 2 (same as Bot 1 but recalculates every step)
-def bot2_a_star(ship, start, goal, fire):
-    """Bot 2 recalculates the shortest path using A* at every step."""
-    close_set = set()
-    came_from = {}
-    gscore = {start: 0}
-    fscore = {start: heuristic(start, goal)}
 
-    open_heap = []
-    heapq.heappush(open_heap, (fscore[start], start))
-
-    while open_heap:
-        current = heapq.heappop(open_heap)[1]
-
-        if current == goal:
-            path = []
-            while current in came_from:
-                path.append(current)
-                current = came_from[current]
-            path = path[::-1]
-            print("Bot 2 - Shortest Path:", path)
-            print("Length of the Shortest Path for Bot 2:", len(path))
-            return path
-
-        close_set.add(current)
-
-        for neighbor in get_neighbors(ship, current, fire):
-            tentative_gscore = gscore[current] + 1
-
-            if neighbor in close_set and tentative_gscore >= gscore.get(neighbor, 0):
-                continue
-
-            if tentative_gscore < gscore.get(neighbor, float('inf')):
-                came_from[neighbor] = current
-                gscore[neighbor] = tentative_gscore
-                fscore[neighbor] = tentative_gscore + heuristic(neighbor, goal)
-                heapq.heappush(open_heap, (fscore[neighbor], neighbor))
-
-    print("No path found for Bot 2!")
-    return False
-
-# Move Bot 2 (same as Bot 1)
-def bot2_move(ship, bot, path):
-    if path:
-        next_move = path.pop(0)
-        ship[bot[0]][bot[1]] = floorSymbol
-        bot[0], bot[1] = next_move
-        ship[bot[0]][bot[1]] = botSymbol
-    return bot, path
-
-# Main function with Bot 2
+# Main function with collision avoidance for Bot 1 and Bot 2
 def main():
     t = 75
     ti = 0
@@ -320,26 +272,38 @@ def main():
 
     placeObjects(bot1, button, fire0, ship, opencells, fireNeighbors)
 
-    # Bot 1 (A*): Calculate path once
-    path1 = bot1_a_star(ship, tuple(bot1), button, fire0)
-    if not path1:
-        print("No path found for Bot 1!")
-        return
+    # Initial paths for both bots
+    path1 = a_star(ship, tuple(bot1), button, fire0, [tuple(bot1), tuple(bot2)])
+    path2 = a_star(ship, tuple(bot2), button, fire0, [tuple(bot1), tuple(bot2)])
 
-    while ti < t and path1:
+    # Display shortest paths and lengths
+    if path1:
+        print(f"Bot 1 - Shortest Path: {path1}")
+        print(f"Length of the Shortest Path for Bot 1: {len(path1)}")
+    if path2:
+        print(f"Bot 2 - Shortest Path: {path2}")
+        print(f"Length of the Shortest Path for Bot 2: {len(path2)}")
+
+    while ti < t and (path1 or path2):
         ti += 1
 
-        # Move Bot 1
-        bot1, path1 = bot1_move(ship, bot1, path1)  # Bot 1 follows its initial A* path
-        print("Bot 1 moved:")
-        print(tabulate(ship))
+        # Get current bot positions
+        bot_positions = [tuple(bot1), tuple(bot2)]
 
-        # Bot 2 recalculates its A* path every time step
-        path2 = bot2_a_star(ship, tuple(bot2), button, fire0)  # Recalculate A* at every step
-        if path2:
-            bot2, path2 = bot2_move(ship, bot2, path2)  # Bot 2 moves step-by-step
-            print("Bot 2 moved:")
+        # Move Bot 1 (A*)
+        if path1:
+            bot1, path1 = bot_move(ship, bot1, path1, bot_positions)  # Bot 1 follows path
+            print("Bot 1 moved:")
             print(tabulate(ship))
+
+        # Move Bot 2 (A*)
+        if path2:
+            bot_positions = [tuple(bot1), tuple(bot2)]  # Update bot positions after Bot 1 moves
+            path2 = a_star(ship, tuple(bot2), button, fire0, bot_positions)  # Recalculate A* for Bot 2
+            if path2:
+                bot2, path2 = bot_move(ship, bot2, path2, bot_positions)  # Bot 2 follows recalculated path
+                print("Bot 2 moved:")
+                print(tabulate(ship))
 
         # Spread fire at each time step
         opencells, fireNeighbors = spreadFire(fireNeighbors, opencells, ship)
