@@ -11,7 +11,10 @@ buttonSymbol = str('\U0001F7E5')
 fireSymbol = str('\U0001F525')
 
 D = 20  # Ship dimensions
-q = 0.5
+q = 0.6
+
+# Global variable to choose which bot to run (1 for Bot 1, 2 for Bot 2)
+bot_choice = 3  # Change this value to 1 for Bot 1 or 2 for Bot 2
 
 
 # Function to generate the ship layout
@@ -192,20 +195,24 @@ def heuristic(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 
-# Get neighbors and allow bots to pass each other
-def get_neighbors(ship, node, bot_positions, fire):
+# Get neighbors and avoid fire and walls
+def get_neighbors(ship, node, fire, fireNeighbors):
     neighbors = []
     x, y = node
     potential_moves = [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]  # N, S, W, E
-    for nx, ny in potential_moves:
-        if 0 <= nx < D and 0 <= ny < D and ship[nx][ny] != wallSymbol and (nx, ny) != fire:
-            if (nx, ny) not in bot_positions:  # Avoid blocking by other bots
+    if bot_choice != 3:
+        for nx, ny in potential_moves:
+            if 0 <= nx < D and 0 <= ny < D and ship[nx][ny] != wallSymbol and ship[nx][ny] != fireSymbol:
+                neighbors.append((nx, ny))
+    if bot_choice == 3:
+        for nx, ny in potential_moves:
+            if 0 <= nx < D and 0 <= ny < D and ship[nx][ny] != wallSymbol and ship[nx][ny] != fireSymbol and ([nx, ny]) != fireNeighbors:
                 neighbors.append((nx, ny))
     return neighbors
 
 
-# A* algorithm for both Bot 1 and Bot 2
-def a_star(ship, start, goal, fire, bot_positions):
+# A* algorithm for the bot
+def a_star(ship, start, goal, fire, fireNeighbors):
     close_set = set()
     came_from = {}
     gscore = {start: 0}
@@ -227,7 +234,7 @@ def a_star(ship, start, goal, fire, bot_positions):
 
         close_set.add(current)
 
-        for neighbor in get_neighbors(ship, current, bot_positions, fire):
+        for neighbor in get_neighbors(ship, current, fire, fireNeighbors):
             tentative_gscore = gscore[current] + 1
 
             if neighbor in close_set and tentative_gscore >= gscore.get(neighbor, 0):
@@ -242,81 +249,65 @@ def a_star(ship, start, goal, fire, bot_positions):
     return False  # No path found
 
 
-# Move bots and handle collisions
-def bot_move(ship, bot, path, bot_positions):
+# Move the bot along the path
+def bot_move(ship, bot, path):
+    if ship[bot[0]][bot[1]] == fireSymbol:
+        print("Can't move")
+        quit()
+
     if path:
-        next_move = path[0]
-        # Check if another bot is in the way
-        if next_move not in bot_positions:
-            path.pop(0)
-            ship[bot[0]][bot[1]] = floorSymbol  # Clear bot's previous position
-            bot[0], bot[1] = next_move          # Move to the next position
-            ship[bot[0]][bot[1]] = botSymbol    # Update the bot's new position
+        next_move = path.pop(0)
+        ship[bot[0]][bot[1]] = floorSymbol  # Clear bot's previous position
+        bot[0], bot[1] = next_move          # Move to the next position
+        ship[bot[0]][bot[1]] = botSymbol    # Update the bot's new position
     return bot, path
 
 
-# Main function with collision avoidance for Bot 1 and Bot 2
-def main():
+# Run either Bot 1 or Bot 2
+def run_bot(ship, bot, button, fire0, opencells, fireNeighbors):
+    # Bot (A*): Calculate the shortest path
+    path = a_star(ship, tuple(bot), button, fire0, fireNeighbors)
+    if not path:
+        print("No path found for the bot!")
+        return
+
+    print(f"Bot - Shortest Path: {path}")
+    print(f"Length of the Shortest Path: {len(path)}")
+
     t = 75
     ti = 0
-    opencells = []
-    opencells, ship = theShip(D, opencells)
-
-    random.shuffle(opencells)
-
-    fireNeighbors = []
-    bot1 = list(opencells[0])  # Bot 1's starting position
-    bot2 = list(opencells[1])  # Bot 2's starting position
-    button = opencells[2]      # Button's position
-    fire0 = opencells[3]       # Initial fire's position
-
-    placeObjects(bot1, button, fire0, ship, opencells, fireNeighbors)
-
-    # Initial paths for both bots
-    path1 = a_star(ship, tuple(bot1), button, fire0, [tuple(bot1), tuple(bot2)])
-    path2 = a_star(ship, tuple(bot2), button, fire0, [tuple(bot1), tuple(bot2)])
-
-    # Display shortest paths and lengths
-    if path1:
-        print(f"Bot 1 - Shortest Path: {path1}")
-        print(f"Length of the Shortest Path for Bot 1: {len(path1)}")
-    if path2:
-        print(f"Bot 2 - Shortest Path: {path2}")
-        print(f"Length of the Shortest Path for Bot 2: {len(path2)}")
-
-    while ti < t and (path1 or path2):
+    while ti < t and path:
         ti += 1
 
-        # Get current bot positions
-        bot_positions = [tuple(bot1), tuple(bot2)]
-
-        # Move Bot 1 (A*)
-        if path1:
-            bot1, path1 = bot_move(ship, bot1, path1, bot_positions)  # Bot 1 follows path
-            print("Bot 1 moved:")
-            print(tabulate(ship))
-
-        # Move Bot 2 (A*)
-        if path2:
-            bot_positions = [tuple(bot1), tuple(bot2)]  # Update bot positions after Bot 1 moves
-            path2 = a_star(ship, tuple(bot2), button, fire0, bot_positions)  # Recalculate A* for Bot 2
-            if path2:
-                bot2, path2 = bot_move(ship, bot2, path2, bot_positions)  # Bot 2 follows recalculated path
-                print("Bot 2 moved:")
-                print(tabulate(ship))
+        # Move the bot
+        bot, path = bot_move(ship, bot, path)
+        print("Bot moved:")
+        print(tabulate(ship))
 
         # Spread fire at each time step
         opencells, fireNeighbors = spreadFire(fireNeighbors, opencells, ship)
         print(tabulate(ship))
 
-        # Check if either bot reaches the button
-        if tuple(bot1) == button:
-            print("Bot 1 reached the button!")
-            break
-        if tuple(bot2) == button:
-            print("Bot 2 reached the button!")
+        # Check if the bot reaches the button
+        if tuple(bot) == button:
+            print("The bot reached the button!")
             break
 
+
+# Main function: run based on global bot_choice variable
+def main():
+    opencells = []
+    opencells, ship = theShip(D, opencells)
+    random.shuffle(opencells)
+
+    fireNeighbors = []
+    bot = list(opencells[0])  # Bot's starting position
+    button = opencells[1]     # Button's position
+    fire0 = opencells[2]      # Initial fire's position
+
+    placeObjects(bot, button, fire0, ship, opencells, fireNeighbors)
+
+    run_bot(ship, bot, button, fire0, opencells, fireNeighbors)
 
 if __name__ == "__main__":
     main()
