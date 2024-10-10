@@ -14,10 +14,6 @@ fireSymbol = str('\U0001F525')
 D = 40  # Ship dimensions
 q = 1
 
-# Global variable for the bot to run (1 for Bot 1)
-bot_choice = 1  # Bot 1 is actually moving, while Bots 2 and 3 print paths
-
-
 # Function to generate the ship layout
 def theShip(D, opencells):
     options = []
@@ -191,7 +187,7 @@ def startFire(Fire, ship, opencells, fireNeighbors):
     return fireNeighbors, opencells
 
 
-# A* Search for pathfinding
+# A* algorithm for pathfinding
 def a_star_search(ship, start, goal):
     def heuristic(a, b):
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
@@ -213,20 +209,17 @@ def a_star_search(ship, start, goal):
             while current in came_from:
                 data.append(current)
                 current = came_from[current]
-            return data
+            return data[::-1]
 
         close_set.add(current)
+        random.shuffle(neighbors)  # Randomize the order of neighbors
         for i, j in neighbors:
             neighbor = current[0] + i, current[1] + j
             tentative_g_score = gscore[current] + 1
-            if 0 <= neighbor[0] < D:
-                if 0 <= neighbor[1] < D:
-                    if ship[neighbor[0]][neighbor[1]] == wallSymbol:
-                        continue
-                else:
+
+            if 0 <= neighbor[0] < D and 0 <= neighbor[1] < D:
+                if ship[neighbor[0]][neighbor[1]] in [wallSymbol, fireSymbol]:
                     continue
-            else:
-                continue
 
             if neighbor in close_set and tentative_g_score >= gscore.get(neighbor, 0):
                 continue
@@ -237,26 +230,26 @@ def a_star_search(ship, start, goal):
                 fscore[neighbor] = tentative_g_score + heuristic(neighbor, goal)
                 heapq.heappush(oheap, (fscore[neighbor], neighbor))
 
-    return False
+    return []  # Return empty list if no path is found
 
 
 # Move the bot
-def moveBot(bot, path, ship):
-    ship[bot[0]][bot[1]] = floorSymbol
-    bot = path.pop()
-    ship[bot[0]][bot[1]] = botSymbol
+def move_bot(bot, path, ship):
+    if path:
+        ship[bot[0]][bot[1]] = floorSymbol  # Clear previous position
+        bot = path.pop(0)  # Move to next position
+        ship[bot[0]][bot[1]] = botSymbol  # Mark new position
     return bot, path, ship
 
 
 # Main function to run the simulation
 def run_simulation():
-    global bot_choice
-
     # Initialize the ship and place objects
     opencells = []
     fireNeighbors = []
     opencells, ship = theShip(D, opencells)
 
+    # Choose starting positions for all bots
     bot1 = random.choice(opencells)
     bot2 = bot1
     bot3 = bot1
@@ -266,21 +259,27 @@ def run_simulation():
     fireNeighbors, opencells = placeObjects(bot1, button, fire0, ship, opencells, fireNeighbors)
 
     # Bots find their paths
-    path1 = a_star_search(ship, bot1, button)
-    path2 = a_star_search(ship, bot2, button)
-    path3 = a_star_search(ship, bot3, button)
+    path1 = a_star_search(ship, bot1, button)  # Bot 1 - Standard A*
+    path2 = a_star_search(ship, bot2, button)  # Bot 2 - Randomized
+    path3 = a_star_search(ship, bot3, button)  # Bot 3 - Randomized
 
     while path1:
-        if bot_choice == 1:
-            bot1, path1, ship = moveBot(bot1, path1, ship)
+        # Move Bot 1
+        bot1, path1, ship = move_bot(bot1, path1, ship)
         print("Bot 1 moves!")
+        print("Bot 1's current path:", path1)
         print(tabulate(ship))
 
-        print("Bot 2's shortest path:", path2)
-        print("Bot 3's shortest path:", path3)
+        # Randomize paths for Bot 2 and Bot 3
+        path2 = a_star_search(ship, bot2, button)
+        path3 = a_star_search(ship, bot3, button)
+
+        # Display paths for Bots 2 and 3
+        print("Bot 2's path:", path2)
+        print("Bot 3's path:", path3)
 
         # Spread fire
         opencells, fireNeighbors = spreadFire(fireNeighbors, opencells, ship)
 
-
+# Start the simulation
 run_simulation()
