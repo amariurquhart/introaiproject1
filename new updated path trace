@@ -1,0 +1,286 @@
+import numpy as np
+from tabulate import tabulate
+import random
+import heapq
+import sys
+
+# Symbols for the grid elements
+wallSymbol = str('\U00002B1B')
+floorSymbol = str('\U00002B1C')
+botSymbol = str('\U0001F916')
+buttonSymbol = str('\U0001F7E5')
+fireSymbol = str('\U0001F525')
+
+D = 40  # Ship dimensions
+q = 1
+
+# Global variable for the bot to run (1 for Bot 1)
+bot_choice = 1  # Bot 1 is actually moving, while Bots 2 and 3 print paths
+
+
+# Function to generate the ship layout
+def theShip(D, opencells):
+    options = []
+    ship = np.full((D, D), int(0), dtype=object)
+    X, Y = random.randrange(D), random.randrange(D)  # Select a random point on the ship
+    opencells.append(tuple([X, Y]))
+
+    markOpen(ship, X, Y, D, options)
+
+    while len(options) >= 1:
+        rand = random.randrange(len(options))
+        X, Y = options[rand]
+        opencells.append(tuple([X, Y]))
+        options = markOpen(ship, X, Y, D, options)
+
+    # Detect and handle dead ends
+    deadends = []
+    for X in range(D):
+        for Y in range(D):
+            if isinstance(ship[X][Y], int):
+                ship[X][Y] = wallSymbol
+            if isinstance(ship[X][Y], str):
+                isDeadend = 0
+                if X - 1 >= 0:
+                    if ship[X - 1][Y] == floorSymbol:
+                        isDeadend += 1
+                if X + 1 < D:
+                    if ship[X + 1][Y] == floorSymbol:
+                        isDeadend += 1
+                if Y - 1 >= 0:
+                    if ship[X][Y - 1] == floorSymbol:
+                        isDeadend += 1
+                if Y + 1 < D:
+                    if ship[X][Y + 1] == floorSymbol:
+                        isDeadend += 1
+                if isDeadend == 1:
+                    deadends.append(tuple([X, Y]))
+
+    random.shuffle(deadends)
+
+    for i in range(int(len(deadends) / 2)):
+        X, Y = deadends[i]
+        randselect = []
+        randnum = 0
+        if Y - 1 >= 0:
+            if isinstance(ship[X][Y - 1], int):
+                randselect.append(ship[X][Y - 1])
+                randnum += 1
+        if X - 1 >= 0:
+            if isinstance(ship[X - 1][Y], int):
+                randselect.append(ship[X - 1][Y])
+                randnum += 1
+        if X + 1 < D:
+            if isinstance(ship[X + 1][Y], int):
+                randselect.append(ship[X + 1][Y])
+                randnum += 1
+        if Y + 1 < D:
+            if isinstance(ship[X][Y + 1], int):
+                randselect.append(ship[X][Y + 1])
+                randnum += 1
+
+        if randnum > 0:
+            randnum = random.randrange(randnum)
+            deadends.remove(tuple([X, Y]))
+            if Y - 1 >= 0 and isinstance(ship[X][Y - 1], int):
+                if randnum == 0:
+                    ship[X][Y - 1] = str(floorSymbol)
+                    opencells.append(tuple([X, Y - 1]))
+                randnum -= 1
+            if X - 1 >= 0 and isinstance(ship[X - 1][Y], int):
+                if randnum == 0:
+                    ship[X - 1][Y] = str(floorSymbol)
+                    opencells.append(tuple([X - 1, Y]))
+                randnum -= 1
+            if X + 1 < D and isinstance(ship[X + 1][Y], int):
+                if randnum == 0:
+                    ship[X + 1][Y] = str(floorSymbol)
+                    opencells.append(tuple([X + 1, Y]))
+                randnum -= 1
+            if Y + 1 < D and isinstance(ship[X][Y + 1], int):
+                if randnum == 0:
+                    ship[X][Y + 1] = str(floorSymbol)
+                    opencells.append(tuple([X, Y + 1]))
+
+    print(tabulate(ship))
+    return opencells, ship
+
+
+# Function to open the cell and add its neighbors to the options list
+def markOpen(ship, X, Y, D, options):
+    ship[X][Y] = str(floorSymbol)
+
+    if (X, Y) in options:
+        options.remove(tuple([X, Y]))
+
+    if Y - 1 >= 0 and isinstance(ship[X][Y - 1], int):
+        ship[X][Y - 1] += 1
+        if ship[X][Y - 1] == 1:
+            options.append(tuple([X, Y - 1]))
+        elif ship[X][Y - 1] > 1 and (X, Y - 1) in options:
+            options.remove(tuple([X, Y - 1]))
+    if X - 1 >= 0 and isinstance(ship[X - 1][Y], int):
+        ship[X - 1][Y] += 1
+        if ship[X - 1][Y] == 1:
+            options.append(tuple([X - 1, Y]))
+        elif ship[X - 1][Y] > 1 and (X - 1, Y) in options:
+            options.remove(tuple([X - 1, Y]))
+    if X + 1 < D and isinstance(ship[X + 1][Y], int):
+        ship[X + 1][Y] += 1
+        if ship[X + 1][Y] == 1:
+            options.append(tuple([X + 1, Y]))
+        elif ship[X + 1][Y] > 1 and (X + 1, Y) in options:
+            options.remove(tuple([X + 1, Y]))
+    if Y + 1 < D and isinstance(ship[X][Y + 1], int):
+        ship[X][Y + 1] += 1
+        if ship[X][Y + 1] == 1:
+            options.append(tuple([X, Y + 1]))
+        elif ship[X][Y + 1] > 1 and (X, Y + 1) in options:
+            options.remove(tuple([X, Y + 1]))
+
+    return options
+
+
+# Place the bot, button, and fire
+def placeObjects(bot, button, fire0, ship, opencells, fireNeighbors):
+    ship[bot[0]][bot[1]] = botSymbol
+    ship[button[0]][button[1]] = buttonSymbol
+    fireNeighbors.append(tuple([fire0[0], fire0[1]]))
+    fireNeighbors, opencells = startFire(fire0, ship, opencells, fireNeighbors)
+    print(tabulate(ship))
+    return fireNeighbors, opencells
+
+
+# Fire spread logic
+def spreadFire(fireNeighbors, opencells, ship):
+    toFire = []
+
+    for i in fireNeighbors:
+        K = 0
+        if i[0] - 1 >= 0 and ship[i[0] - 1][i[1]] == fireSymbol:
+            K += 1
+        if i[0] + 1 < D and ship[i[0] + 1][i[1]] == fireSymbol:
+            K += 1
+        if i[1] - 1 >= 0 and ship[i[0]][i[1] - 1] == fireSymbol:
+            K += 1
+        if i[1] + 1 < D and ship[i[0]][i[1] + 1] == fireSymbol:
+            K += 1
+        p = (1 - ((1 - q) ** K))
+        if random.uniform(0, 1) <= p:
+            toFire.append(tuple(i))
+
+    for i in toFire:
+        startFire(i, ship, opencells, fireNeighbors)
+
+    return opencells, fireNeighbors
+
+
+# Fire ignition logic
+def startFire(Fire, ship, opencells, fireNeighbors):
+    ship[Fire[0]][Fire[1]] = fireSymbol
+    fireNeighbors.remove(tuple([Fire[0], Fire[1]]))
+    opencells.remove(tuple([Fire[0], Fire[1]]))
+    if Fire[1] - 1 >= 0 and (ship[Fire[0]][Fire[1] - 1] in [floorSymbol, botSymbol, buttonSymbol]):
+        fireNeighbors.append(tuple([Fire[0], Fire[1] - 1]))
+    if Fire[1] + 1 < D and (ship[Fire[0]][Fire[1] + 1] in [floorSymbol, botSymbol, buttonSymbol]):
+        fireNeighbors.append(tuple([Fire[0], Fire[1] + 1]))
+    if Fire[0] + 1 < D and (ship[Fire[0] + 1][Fire[1]] in [floorSymbol, botSymbol, buttonSymbol]):
+        fireNeighbors.append(tuple([Fire[0] + 1, Fire[1]]))
+    if Fire[0] - 1 >= 0 and (ship[Fire[0] - 1][Fire[1]] in [floorSymbol, botSymbol, buttonSymbol]):
+        fireNeighbors.append(tuple([Fire[0] - 1, Fire[1]]))
+    return fireNeighbors, opencells
+
+
+# A* Search for pathfinding
+def a_star_search(ship, start, goal):
+    def heuristic(a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+    neighbors = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+    close_set = set()
+    came_from = {}
+    gscore = {start: 0}
+    fscore = {start: heuristic(start, goal)}
+    oheap = []
+
+    heapq.heappush(oheap, (fscore[start], start))
+
+    while oheap:
+        current = heapq.heappop(oheap)[1]
+
+        if current == goal:
+            data = []
+            while current in came_from:
+                data.append(current)
+                current = came_from[current]
+            return data
+
+        close_set.add(current)
+        for i, j in neighbors:
+            neighbor = current[0] + i, current[1] + j
+            tentative_g_score = gscore[current] + 1
+            if 0 <= neighbor[0] < D:
+                if 0 <= neighbor[1] < D:
+                    if ship[neighbor[0]][neighbor[1]] == wallSymbol:
+                        continue
+                else:
+                    continue
+            else:
+                continue
+
+            if neighbor in close_set and tentative_g_score >= gscore.get(neighbor, 0):
+                continue
+
+            if tentative_g_score < gscore.get(neighbor, 0) or neighbor not in [i[1] for i in oheap]:
+                came_from[neighbor] = current
+                gscore[neighbor] = tentative_g_score
+                fscore[neighbor] = tentative_g_score + heuristic(neighbor, goal)
+                heapq.heappush(oheap, (fscore[neighbor], neighbor))
+
+    return False
+
+
+# Move the bot
+def moveBot(bot, path, ship):
+    ship[bot[0]][bot[1]] = floorSymbol
+    bot = path.pop()
+    ship[bot[0]][bot[1]] = botSymbol
+    return bot, path, ship
+
+
+# Main function to run the simulation
+def run_simulation():
+    global bot_choice
+
+    # Initialize the ship and place objects
+    opencells = []
+    fireNeighbors = []
+    opencells, ship = theShip(D, opencells)
+
+    bot1 = random.choice(opencells)
+    bot2 = bot1
+    bot3 = bot1
+    button = random.choice(opencells)
+    fire0 = random.choice(opencells)
+
+    fireNeighbors, opencells = placeObjects(bot1, button, fire0, ship, opencells, fireNeighbors)
+
+    # Bots find their paths
+    path1 = a_star_search(ship, bot1, button)
+    path2 = a_star_search(ship, bot2, button)
+    path3 = a_star_search(ship, bot3, button)
+
+    while path1:
+        if bot_choice == 1:
+            bot1, path1, ship = moveBot(bot1, path1, ship)
+        print("Bot 1 moves!")
+        print(tabulate(ship))
+
+        print("Bot 2's shortest path:", path2)
+        print("Bot 3's shortest path:", path3)
+
+        # Spread fire
+        opencells, fireNeighbors = spreadFire(fireNeighbors, opencells, ship)
+
+
+run_simulation()
